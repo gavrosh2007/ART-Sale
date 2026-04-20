@@ -1,6 +1,6 @@
 {
-  "name": "ART-Sale | Галерея и Книга искусства",
-  "short_name": "ART-Sale",
+  "name": "HM&SA Art Sale",
+  "short_name": "HM&SA",
   "start_url": "/ART-Sale/index.html",
   "scope": "/ART-Sale/",
   "display": "standalone",
