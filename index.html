@@ -323,6 +323,16 @@
             color: #999;
         }
         .close-modal:hover { color: #c17b5a; }
+        .work-list-item {
+            padding: 12px;
+            margin-bottom: 12px;
+            background: rgba(0,0,0,0.03);
+            border-radius: 16px;
+            text-align: left;
+        }
+        .work-list-title { font-weight: bold; font-size: 1.1rem; color: #1e2b4f; }
+        .work-list-price { color: #c17b5a; margin-left: 8px; }
+        .work-list-collector { font-size: 0.85rem; color: #2a3f6e; margin-top: 4px; }
         footer {
             text-align: center;
             margin-top: 3rem;
@@ -422,7 +432,7 @@
 <div id="ownerModal" class="modal">
     <div class="modal-content">
         <span class="close-modal">&times;</span>
-        <h3 id="modalOwnersTitle">📋 Авторы и коллекционеры</h3>
+        <h3 id="modalOwnersTitle">📋 Список добавленных работ</h3>
         <div id="ownersListContainer"></div>
     </div>
 </div>
@@ -451,7 +461,6 @@
     </div>
 </div>
 
-<!-- Модалка просмотра работы -->
 <div id="viewWorkModal" class="modal">
     <div class="modal-content">
         <span class="close-modal">&times;</span>
@@ -561,89 +570,54 @@
         });
     }
 
+    // Список работ – все добавленные работы (название, цена, коллекционер с учётом private)
+    function renderWorkList() {
+        const t = translations[currentLang];
+        const container = document.getElementById('ownersListContainer');
+        if (!container) return;
+        if (artworks.length === 0) {
+            container.innerHTML = `<div style="padding:20px; text-align:center;">${t.noWorks}</div>`;
+            return;
+        }
+        container.innerHTML = artworks.map(art => {
+            const showCollector = collectorsVisible || !art.isPrivate;
+            const collectorDisplay = showCollector ? escapeHtml(art.collector) : `🔒 ${t.collectorHidden}`;
+            return `
+                <div class="work-list-item">
+                    <div class="work-list-title">${escapeHtml(art.title)} <span class="work-list-price">💰 ${art.price} €</span></div>
+                    <div class="work-list-collector">🏛️ ${collectorDisplay}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function showWorkListModal() {
+        renderWorkList();
+        document.getElementById('ownerModal').classList.add('active');
+    }
+
     function escapeHtml(str) { return str.replace(/[&<>]/g, m => m==='&'?'&amp;': m==='<'?'&lt;': '&gt;'); }
 
-    // ========== owners.json ==========
-    let owners = [];
-    async function loadOwners() {
-        try {
-            const response = await fetch('owners.json');
-            if (!response.ok) throw new Error();
-            owners = await response.json();
-        } catch(e) {
-            owners = [];
-        }
-        if (owners.length === 0) {
-            owners = [{
-                id: 1,
-                nameRu: "Супруненко Андрей",
-                nameEn: "Andriy Suprunenko",
-                emoji: "🎨",
-                isPrivate: false
-            }];
-        }
-    }
-
-    function showOwnersList() {
-        const t = translations[currentLang];
-        const publicOwners = owners.filter(o => {
-            const name = currentLang === 'ru' ? o.nameRu : o.nameEn;
-            return !name || !name.startsWith('!');
-        });
-        const privateOwners = owners.filter(o => {
-            const name = currentLang === 'ru' ? o.nameRu : o.nameEn;
-            return name && name.startsWith('!');
-        });
-        let html = '';
-        if (publicOwners.length) {
-            html += `<div style="margin-bottom: 10px;"><strong>${t.publicOwners}</strong></div>`;
-            html += publicOwners.map(o => `<div class="owner-item"><div class="owner-emoji">${o.emoji || '🎨'}</div><div class="owner-name">${escapeHtml(currentLang === 'ru' ? o.nameRu : o.nameEn)}</div></div>`).join('');
-        } else {
-            html += `<div><strong>${t.publicOwners}</strong></div><div>${t.noOwners}</div>`;
-        }
-        if (privateOwners.length) {
-            html += `<div style="margin-top: 15px; margin-bottom: 10px;"><strong>${t.privateOwners}</strong></div>`;
-            if (!privateListUnlocked) {
-                html += `<div style="margin-bottom: 15px;">
-                            <input type="password" id="listPasswordInput" placeholder="${t.passwordPlaceholder}" style="width: 100%; padding: 8px; border-radius: 30px; border: 1px solid #ccc; margin-bottom: 8px;">
-                            <button id="unlockListBtn" style="background: #1e2b4f; color: white; border: none; padding: 8px 16px; border-radius: 30px; cursor: pointer;">${t.unlockBtn}</button>
-                         </div>`;
-                html += `<div id="privateOwnersList" style="display: none;"></div>`;
-            } else {
-                html += `<div id="privateOwnersList">`;
-                html += privateOwners.map(o => `<div class="owner-item"><div class="owner-emoji">${o.emoji || '🔒'}</div><div class="owner-name">${escapeHtml(currentLang === 'ru' ? o.nameRu : o.nameEn)}</div></div>`).join('');
-                html += `</div>`;
-            }
-        }
-        document.getElementById('ownersListContainer').innerHTML = html;
-        document.getElementById('ownerModal').classList.add('active');
-
-        if (privateOwners.length && !privateListUnlocked) {
-            const btn = document.getElementById('unlockListBtn');
-            if (btn) {
-                btn.addEventListener('click', () => {
-                    const pwd = document.getElementById('listPasswordInput').value;
-                    if (pwd === MASTER_PASSWORD) {
-                        privateListUnlocked = true;
-                        showOwnersList();
-                    } else alert(t.wrongPassword);
-                });
-            }
-        }
-    }
-
+    // ========== owners.json не используется, но оставлен для совместимости ==========
     function toggleCollectorsVisibility() {
         const t = translations[currentLang];
+        const hasPrivate = artworks.some(art => art.isPrivate === true);
+        if (!hasPrivate) {
+            alert(t.noPrivateCollectors);
+            return;
+        }
         if (!collectorsVisible) {
             const pwd = prompt(t.enterPassword);
             if (pwd === MASTER_PASSWORD) {
                 collectorsVisible = true;
                 renderGallery();
+                renderWorkList(); // если модалка уже открыта, то обновим её при следующем открытии
                 document.getElementById('revealCollectorsBtn').style.opacity = '0.7';
             } else alert(t.wrongPassword);
         } else {
             collectorsVisible = false;
             renderGallery();
+            renderWorkList();
             document.getElementById('revealCollectorsBtn').style.opacity = '1';
         }
     }
@@ -696,7 +670,7 @@
             gallery: 'Галерея', book: 'Книга', download: 'Скачать PDF', pwaButton: 'Установить',
             pwaTooltip: '💡 Нажмите — установите как приложение.\n• Chrome/Edge: появится диалог.\n• iPhone: Поделиться → На экран «Домой».',
             instructions: `<h4>📘 Как добавить свою работу</h4><p><strong>Для продавцов:</strong></p><ul><li>Нажмите "Добавить работу" и заполните форму.</li><li>Если имя коллекционера начинается с '!', оно будет скрыто до ввода пароля.</li><li>Вы можете загрузить фото с устройства (JPG/PNG).</li></ul><p><strong>Для покупателей:</strong></p><ul><li>Просматривайте работы в галерее.</li><li>Чтобы увидеть имена коллекционеров, нажмите кнопку "Показать имена коллекционеров" и введите пароль.</li></ul><p><strong>Контакты:</strong><br>📞 +357 99 453575<br>✉️ gavrosh2007@gmail.com<br>💬 Telegram: @hermesmcbot</p>`,
-            listButton: 'Список работ', addButtonText: 'Добавить работу', modalOwnersTitle: '📋 Авторы и коллекционеры',
+            listButton: 'Список работ', addButtonText: 'Добавить работу', modalOwnersTitle: '📋 Список добавленных работ',
             publicOwners: '👤 Публичные владельцы', privateOwners: '🔒 Приватные (требуется пароль)',
             noOwners: 'Нет владельцев', noWorks: 'Нет произведений. Добавьте первое!',
             passwordPlaceholder: 'Введите пароль для доступа', unlockBtn: '🔓 Показать', wrongPassword: '❌ Неверный пароль',
@@ -705,13 +679,13 @@
             labelCollector: 'Коллекционер (если начинается с "!" — приватный)', labelImage: 'Фото (JPG/PNG)',
             revealBtnText: 'Показать имена коллекционеров', enterPassword: 'Введите пароль для отображения имён коллекционеров',
             collectorHidden: 'Коллекционер скрыт (введите пароль)', deleteConfirm: 'Удалить эту работу?',
-            priceLabel: 'Цена', collectorLabel: 'Коллекционер'
+            priceLabel: 'Цена', collectorLabel: 'Коллекционер', noPrivateCollectors: 'Нет приватных коллекционеров'
         },
         en: {
             gallery: 'Gallery', book: 'Book', download: 'Download PDF', pwaButton: 'Install',
             pwaTooltip: '💡 Click — install as app.\n• Chrome/Edge: dialog appears.\n• iPhone: Share → Add to Home Screen.',
             instructions: `<h4>📘 How to add your artwork</h4><p><strong>For sellers:</strong></p><ul><li>Click "Add artwork" and fill the form.</li><li>If collector's name starts with '!', it will be hidden until password entered.</li><li>You can upload a photo (JPG/PNG).</li></ul><p><strong>For buyers:</strong></p><ul><li>Browse artworks in the gallery.</li><li>To see collector names, click "Show collector names" and enter the password.</li></ul><p><strong>Contacts:</strong><br>📞 +357 99 453575<br>✉️ gavrosh2007@gmail.com<br>💬 Telegram: @hermesmcbot</p>`,
-            listButton: 'Works list', addButtonText: 'Add artwork', modalOwnersTitle: '📋 Authors & Collectors',
+            listButton: 'Works list', addButtonText: 'Add artwork', modalOwnersTitle: '📋 List of added works',
             publicOwners: '👤 Public owners', privateOwners: '🔒 Private (password required)',
             noOwners: 'No owners', noWorks: 'No artworks. Add the first one!',
             passwordPlaceholder: 'Enter password to access', unlockBtn: '🔓 Show', wrongPassword: '❌ Wrong password',
@@ -720,7 +694,7 @@
             labelCollector: 'Collector (if starts with "!" — private)', labelImage: 'Photo (JPG/PNG)',
             revealBtnText: 'Show collector names', enterPassword: 'Enter password to reveal collector names',
             collectorHidden: 'Collector hidden (enter password)', deleteConfirm: 'Delete this artwork?',
-            priceLabel: 'Price', collectorLabel: 'Collector'
+            priceLabel: 'Price', collectorLabel: 'Collector', noPrivateCollectors: 'No private collectors'
         }
     };
 
@@ -748,13 +722,14 @@
         document.getElementById('footer-ru').style.display = (lang === 'ru') ? 'block' : 'none';
         document.getElementById('footer-en').style.display = (lang === 'en') ? 'block' : 'none';
         renderGallery();
+        if (document.getElementById('ownerModal').classList.contains('active')) renderWorkList();
     }
 
     document.querySelectorAll('.lang-btn').forEach(btn => {
         btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
     });
 
-    document.getElementById('listButton').addEventListener('click', showOwnersList);
+    document.getElementById('listButton').addEventListener('click', showWorkListModal);
     document.getElementById('revealCollectorsBtn').addEventListener('click', toggleCollectorsVisibility);
 
     const ownerModal = document.getElementById('ownerModal');
@@ -786,7 +761,6 @@
     });
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { scope: './' }).catch(err => console.warn('SW error:', err));
 
-    loadOwners();
     loadData();
     setLanguage('ru');
 </script>
